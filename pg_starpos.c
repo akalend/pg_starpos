@@ -3,28 +3,12 @@
  */
 #include "postgres.h"
 #include "fmgr.h"
-#include "c.h"
-
-#include "utils/fmgrprotos.h"
-
-PG_MODULE_MAGIC;
-
-
-PG_FUNCTION_INFO_V1(pg_starpos_1);
-
-/* the tamplate function for debuging */
-Datum
-pg_starpos_1(PG_FUNCTION_ARGS)
-{	
-	
-}
-
-#include "postgres.h"
-#include "fmgr.h"
 #include "funcapi.h"
+#include "c.h"
 #include "access/htup_details.h"
 #include "utils/builtins.h"
 #include "utils/float.h"
+#include "utils/fmgrprotos.h"
 #include "utils/timestamp.h"
 #include <math.h>
 
@@ -58,60 +42,76 @@ star_position(PG_FUNCTION_ARGS)
                 + 0.000387933 * T * T
                 - T * T * T / 38710000.0;
 
+    double lst;
+    double H;
+    double phi;
+    double dec;
+    double Hr;
+    double sin_h;
+    double h;
+    double x;
+    double y;
+    double A;
+    double alt_deg;
+    double az_deg;
+
+    Datum values[2];
+    bool  nulls[2] = { false, false };
+    TupleDesc tupdesc;
+    HeapTuple tuple;
+
+
     gmst = fmod(gmst, 360.0);
     if (gmst < 0.0) gmst += 360.0;
 
     /* LST */
-    double lst = gmst + lon;
+    lst = gmst + lon;
     lst = fmod(lst, 360.0);
     if (lst < 0.0) lst += 360.0;
 
     /* Часовой угол */
-    double H = lst - ra_deg;
+    H = lst - ra_deg;
     H = fmod(H + 180.0, 360.0);
     if (H < 0.0) H += 360.0;
     H -= 180.0;
 
-    double phi = lat     * M_PI / 180.0;
-    double dec = dec_deg * M_PI / 180.0;
-    double Hr  = H       * M_PI / 180.0;
+    phi = lat     * M_PI / 180.0;
+    dec = dec_deg * M_PI / 180.0;
+    Hr  = H       * M_PI / 180.0;
 
     /* Высота */
-    double sin_h = sin(phi) * sin(dec)
+    sin_h = sin(phi) * sin(dec)
                  + cos(phi) * cos(dec) * cos(Hr);
 
     if (sin_h >  1.0) sin_h =  1.0;
     if (sin_h < -1.0) sin_h = -1.0;
 
-    double h = asin(sin_h);
+    h = asin(sin_h);
 
     /* Азимут */
-    double y = -cos(dec) * sin(Hr);
-    double x =  sin(dec) * cos(phi)
+    y = -cos(dec) * sin(Hr);
+    x =  sin(dec) * cos(phi)
               - cos(dec) * sin(phi) * cos(Hr);
 
-    double A = atan2(y, x);
+    A = atan2(y, x);
 
-    double alt_deg = h * 180.0 / M_PI;
-    double az_deg  = A * 180.0 / M_PI;
+    alt_deg = h * 180.0 / M_PI;
+    az_deg  = A * 180.0 / M_PI;
 
     if (az_deg < 0.0) az_deg += 360.0;
 
     /* Формируем композитный тип star_pos */
-    TupleDesc tupdesc;
     if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
         ereport(ERROR,
                 (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
                  errmsg("function returning record called in context "
                         "that cannot accept type record")));
 
-    Datum values[2];
-    bool  nulls[2] = { false, false };
 
     values[0] = Float8GetDatum(alt_deg);
     values[1] = Float8GetDatum(az_deg);
 
-    HeapTuple tuple = heap_form_tuple(tupdesc, values, nulls);
+    tuple = heap_form_tuple(tupdesc, values, nulls);
 
     PG_RETURN_DATUM(HeapTupleGetDatum(tuple));
 }
