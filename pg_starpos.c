@@ -88,7 +88,7 @@ star_position(PG_FUNCTION_ARGS)
 
     h = asin(sin_h);
 
-    /* Азимут */
+    /* Азимут 0=север, 90=восток */
     y = -cos(dec) * sin(Hr);
     x =  sin(dec) * cos(phi)
               - cos(dec) * sin(phi) * cos(Hr);
